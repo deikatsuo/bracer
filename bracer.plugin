@@ -1,0 +1,10 @@
+[Plugin]
+Name=Bracer
+Description=Rust code completion plugin
+Author = Deri Herdianto (deikatsuo)
+Builtin=true
+
+X-Completion-Provider-Languages=rust
+
+Loader=python3
+Module=bracer
