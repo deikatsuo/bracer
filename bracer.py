@@ -18,13 +18,14 @@ from gi.repository import Ide
 from gi.repository import Dazzle
 
 class Bracer():
-    version = 'v1.0'
+    version = '1.0'
+    racer = None
     dock_text_widget = None
     dock_widget = None
-        
+
 class Racer:
     def __init__(self):
-        self.RACER_PATH    = None
+        self.RACER_PATH = None
         
         # This Regex copied from https://github.com/qzed/autocomplete-racer
         self.regex = '^MATCH\s+([^;]+);([^;]+);(\d+);(\d+);((?:[^;]|\\;)+);([^;]+);((?:[^;]|\\;)+)?;\"([\S\s]+)?\"'
@@ -41,7 +42,7 @@ class Racer:
 
         self.RACER_PATH = default_value
         return self.RACER_PATH
-
+    
     def init_racer(self, context, subcommand):
         _, iter = context.get_iter()
         current_dir = os.path.dirname(iter.get_buffer()
@@ -59,11 +60,10 @@ class Racer:
         line = iter.get_line() + 1
         column = iter.get_line_offset()
 
-        racer_path = self.get_racer_path()
-        result = ''
+        result = None
         try:
             launcher = Ide.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE)
-            launcher.push_argv(racer_path)
+            launcher.push_argv(self.get_racer_path())
             launcher.push_argv(subcommand)
             launcher.push_argv(str(line))
             launcher.push_argv(str(column))
@@ -74,14 +74,12 @@ class Racer:
             
             if stdout:
                 result = stdout
-                
+                      
         except GLib.Error as e:
             pass
         
         temp_file.close()
-
         return result
-
 
     def get_matches(self, context):
         proc_result = self.init_racer(context, "complete-with-snippet")
@@ -92,7 +90,6 @@ class Racer:
         
         for line in proc_result.split('\n'):
             if line.startswith("MATCH "):
-
                 line_items = re.split(self.regex, line)
 
                 _text = line_items[1]
@@ -107,25 +104,36 @@ class Racer:
                 _doc = _doc.replace('\\n', '\n')
                 _doc = _doc.replace('\\"', '"')
                 _doc = _doc.replace('\\\\', '\\')
-                
-                
+                 
                 completion.append((_text,_snippet,_path,_type,_cxt,_doc))
-
+                
         return completion
-
-class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.CompletionProvider):
-    def __init__(self):
-        self.racer = Racer()
     
+    def version(self):
+        result = None
+        try:
+            launcher = Ide.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE)
+            launcher.push_argv(self.get_racer_path())
+            launcher.push_argv('-V') 
+            launcher.set_run_on_host(True)
+            sub_process = launcher.spawn()
+            success, stdout, stderr = sub_process.communicate_utf8(None, None) 
+        
+            if stdout:
+                result = stdout.replace('racer','').strip()
+        except GLib.Error as e:
+            pass
+        return result
+
+class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.CompletionProvider):   
     def do_get_name(self):
         return _("Bracer Rust Code Completion")
 
     def do_populate(self, context):
         _, iter = context.get_iter()
-        
         proposals = []
 
-        for _text, _snippet, _path, _type, _cxt, _doc in self.racer.get_matches(context):
+        for _text, _snippet, _path, _type, _cxt, _doc in Bracer.racer.get_matches(context):
             proposal = CompletionProposal(self, context, _text, _doc, _type)
             proposals.append(proposal)
         
@@ -140,7 +148,6 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         buffer = iter.get_buffer()
         if Ide.CompletionProvider.context_in_comment_or_string(context):
             return False
-
         return True
         
     def do_activate_proposal(self, provider, proposal):
@@ -168,7 +175,6 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
     def do_get_info(self):
         textbuffer = Bracer.dock_text_widget.get_buffer()
         textbuffer.set_text(self.info)
-
         return None
 
     def do_get_gicon(self):
@@ -219,6 +225,9 @@ class BracerApplicationAddin(GObject.Object, Ide.ApplicationAddin):
     def do_load(self, application):
         print('Builder Application Addin: Load Bracer plugin')
         
+        # Set racer
+        Bracer.racer = Racer()
+        
     def do_unload(self, application):
         print('Builder Application Addin: Unload Bracer plugin')
         
@@ -226,7 +235,6 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
     ids = []
     def do_load(self, prefs):
         print('Builder Preferences Addin: Load Bracer plugin preferences')
-        
         self.prefs = prefs
         
         # Create a new page for bracer
@@ -244,14 +252,21 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
     def show_version(self):
         self.prefs.add_list_group('bracer', 'version', _('Versions'), Gtk.SelectionMode.NONE, 100)
         
+        # Bracer
         bracerv = Bracer.version
         bracer = self.create_version_view('Bracer', bracerv)
-        racer = self.create_version_view('Racer', 'v1.0')
+        
+        # Racer
+        racerv = Bracer.racer.version()
+        racer = self.create_version_view('Racer', racerv)
         
         bracer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, expand=True, visible=True)
         bracer_box.pack_start(bracer, True, True, 0)
+        racer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, expand=True, visible=True)
+        racer_box.pack_start(racer, True, True, 0)
         
         self.ids.append(self.prefs.add_custom('bracer', 'version', bracer_box, None, 1000))
+        self.ids.append(self.prefs.add_custom('bracer', 'version', racer_box, None, 1000))
         
     def create_version_view(self, label, version):
         custom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12, expand=True, visible=True)
