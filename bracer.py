@@ -20,6 +20,7 @@ from gi.repository import Dazzle
 class Bracer():
     version = '1.0'
     racer = None
+    setting = None
     dock_text_widget = None
     dock_widget = None
 
@@ -154,20 +155,20 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         return False, None       
             
 class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
-    def __init__(self, provider, context, completion, info, icon_type, *args, **kwargs):
+    def __init__(self, provider, context, _completion, _info, _type, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.provider = provider
         self.context = context
-        self.completion = completion
-        self.complete = completion
-        self.info = info
-        self.icon_type = icon_type
+        self.completion = _completion
+        self.complete = _completion
+        self.info = _info
+        self.type = _type
 
     def do_get_label(self):
-        return self.completion
+        return completion
 
     def do_get_markup(self):
-        return self.completion
+        return "<sup>"+self.type+"</sup> <big>"+self.completion+"</big>"
 
     def do_get_text(self):
         return self.complete
@@ -187,7 +188,7 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
                         "Enum":         "lang-namespace-symbolic",
                         "Crate":        "lang-class-symbolic"  }
             
-        return Gio.ThemedIcon.new(icon_names[self.icon_type])
+        return Gio.ThemedIcon.new(icon_names[self.type])
 
     def do_hash(self):
         return hash(self.completion)
@@ -224,7 +225,7 @@ class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
 class BracerApplicationAddin(GObject.Object, Ide.ApplicationAddin):        
     def do_load(self, application):
         print('Builder Application Addin: Load Bracer plugin')
-        
+
         # Set racer
         Bracer.racer = Racer()
         
@@ -239,10 +240,9 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         
         # Create a new page for bracer
         self.prefs.add_page('bracer', _('Bracer Preferences'), 100)
-        
         # Show Bracer & Racer versions
         self.show_version()
-        
+
     def do_unload(self, prefs):
         print('Builder Preferences Addin: Unload Bracer plugin preferences')
         if self.ids:
@@ -255,7 +255,6 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         # Bracer
         bracerv = Bracer.version
         bracer = self.create_version_view('Bracer', bracerv)
-        
         # Racer
         racerv = Bracer.racer.version()
         racer = self.create_version_view('Racer', racerv)
