@@ -19,7 +19,7 @@ from gi.repository import Ide
 from gi.repository import Dazzle
 
 class Bracer():
-    _VERSION = '1.0'
+    _VERSION = '1.10'
     _TMP_DIR = None
     
     enabled = False
