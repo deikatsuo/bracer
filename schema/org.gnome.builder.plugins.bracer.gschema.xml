@@ -1,0 +1,14 @@
+<schemalist>
+  <schema id="org.gnome.builder.plugins.bracer" path="/org/gnome/builder/plugins/bracer/" gettext-domain="gnome-builder">
+    <key name="prefs-documentation" type="b">
+      <default>true</default>
+      <summary>Show Documentation</summary>
+      <description>Show a rust documentation on the dock</description>
+    </key>
+    <key name="prefs-markdown" type="b">
+      <default>false</default>
+      <summary>Show Documentation</summary>
+      <description>Show a rust documentation on the dock</description>
+    </key>
+  </schema>
+</schemalist>
