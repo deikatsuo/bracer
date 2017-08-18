@@ -22,6 +22,7 @@ class Bracer():
     _VERSION = '1.0'
     _TMP_DIR = None
     
+    enabled = False
     racer = None
     setting = None
     dock_text_widget = None
@@ -159,14 +160,15 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         return _("Bracer Rust Code Completion")
 
     def do_populate(self, context):
-        _, iter = context.get_iter()
-        proposals = []
+        if Bracer.enabled:
+            _, iter = context.get_iter()
+            proposals = []
 
-        for _text, _snippet, _path, _type, _cxt, _doc in Bracer.racer.get_matches(context):
-            proposal = CompletionProposal(self, context, _text, _doc, _type)
-            proposals.append(proposal)
+            for _text, _snippet, _path, _type, _cxt, _doc in Bracer.racer.get_matches(context):
+                proposal = CompletionProposal(self, context, _text, _doc, _type)
+                proposals.append(proposal)
         
-        context.add_proposals(self, proposals, True)
+            context.add_proposals(self, proposals, True)
             
     def do_match(self, context):
         _, iter = context.get_iter()
@@ -244,31 +246,44 @@ class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
         
         dock_widget = Dazzle.DockWidget(title='Rust Documentation', visible=True, expand=True)
         dock_widget.add(scrolled)
-        
-        Ide.LayoutPane.add(dock_pane, dock_widget)
 
         Bracer.dock_text_widget = dock_text_widget
         Bracer.dock_widget = dock_widget
+        
+        if Bracer.settings.get_boolean('prefs-documentation'):
+            Ide.LayoutPane.add(dock_pane, Bracer.dock_widget)
 
     def do_unload(self, workbench):
         print('Builder Workbench Addin: Unload Bracer plugin workbench')
+        Bracer.dock_widget.destroy()
+        Bracer.dock_widget = None
+        Bracer.dock_text_widget = None
+        
 
 class BracerApplicationAddin(GObject.Object, Ide.ApplicationAddin):        
     def do_load(self, application):
         print('Builder Application Addin: Load Bracer plugin')
-
+        Bracer.enabled = True
         # Set racer
         Bracer.racer = Racer()
         
     def do_unload(self, application):
         print('Builder Application Addin: Unload Bracer plugin')
-        
+        Bracer.enabled = False
+        Bracer.racer = None
+            
 class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
     ids = []
     def do_load(self, prefs):
         print('Builder Preferences Addin: Load Bracer plugin preferences')
         self.prefs = prefs
-        
+        home = os.path.join(Bracer.get_home(), 'schema')
+        settings = Gio.SettingsSchemaSource.get_default()
+        settings = Gio.SettingsSchemaSource.new_from_directory(home, None, False)
+        settings = settings.lookup('org.gnome.builder.plugins.bracer', True)
+        settings = Gio.Settings.new_full(settings, None, None)
+        Bracer.settings = settings
+
         # Create a new page for bracer
         self.prefs.add_page('bracer', _('Bracer Preferences'), 100)
         # Show Bracer & Racer versions
@@ -281,27 +296,73 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         if self.ids:
             for id in self.ids:
                 prefs.remove_id(id)
+        Bracer.settings = None
     
     def show_preferences(self):
-        self.prefs.add_list_group('bracer', 'preferences', _('Preferences'), Gtk.SelectionMode.NONE, 100)
-        documentation = self.prefs.add_switch(
-                'bracer', 'preferences',
-                'org.gnome.builder.plugins.bracer.enabled', 'enabled', '/',
-                None,
-                _("Documentation"),
-                _("The documentation should be shown on the dock\ninside Rust Documentation tab"),
-                None, 30)
-        markdown = self.prefs.add_switch(
-                'bracer', 'preferences',
-                'org.gnome.builder.extension-type', 'enabled', '/',
-                None,
-                _("Markdown"),
-                _("Show the documentation as Markdown"),
-                None, 30)
-                
-        self.ids.append(documentation)
-        self.ids.append(markdown)
-                
+        self.prefs.add_list_group('bracer',
+                                  'preferences',
+                                  _('Preferences'),
+                                  Gtk.SelectionMode.NONE, 100)
+                                          
+        self.create_switch('bracer',
+                           'preferences',
+                           'Documentation',
+                           'prefs-documentation',
+                           'The documentation should be shown on the dock\n'
+                           'inside Rust Documentation tab')
+                           
+        self.create_switch('bracer',
+                           'preferences',
+                           'Markdown',
+                           'prefs-markdown',
+                           'Show the documentation as Markdown')
+                           
+    def create_switch(self, p, g, l, b, d='Default'):
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                      spacing=12,
+                      expand=True,
+                      visible=True)
+                      
+        title = Gtk.Label(halign='start',
+                          expand=True,
+                          visible=True,
+                          label=l)
+                          
+        subtitle = Gtk.Label(halign='start', expand=True, visible=True)
+        subtitle.get_style_context().add_class('dim-label')
+        subtitle.set_markup('<small>'+str(d)+'</small>')
+        
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                       expand=True,
+                       visible=True)
+                       
+        vbox.pack_start(title, True, True, 0)
+        vbox.pack_start(subtitle, True, True, 0)
+        box.pack_start(vbox, True, True, 0)
+        
+        switch = Gtk.Switch(visible=True, expand=False)
+        Bracer.settings.bind(b, switch, "active", Gio.SettingsBindFlags.DEFAULT)
+        
+        switch_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                       spacing=6,
+                       expand=False,
+                       visible=True)
+        switch_box.pack_start(switch, True, False, 0)
+        pack = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                       spacing=6,
+                       expand=True,
+                       visible=True)
+                       
+        pack.pack_start(box, True, True, 0)
+        pack.pack_end(switch_box, False, False, 0)
+        ready = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                        spacing=6,
+                        expand=True,
+                        visible=True)
+        
+        ready.pack_start(pack, True, True, 0)
+        self.ids.append(self.prefs.add_custom(p, g, ready, None, 1000))
+    
     def show_version(self):
         self.prefs.add_list_group('bracer', 'version', _('Versions'), Gtk.SelectionMode.NONE, 100)
         
@@ -311,6 +372,7 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         # Racer
         racerv = Bracer.racer.version()
         racer = self.create_version_view('Racer', racerv)
+        racerv2 = Bracer.racer.version()
         
         bracer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, expand=True, visible=True)
         bracer_box.pack_start(bracer, True, True, 0)
