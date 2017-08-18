@@ -14,43 +14,70 @@ from gi.repository import GLib
 from gi.repository import GObject
 from gi.repository import Gtk
 from gi.repository import GtkSource
+from gi.repository import Peas
 from gi.repository import Ide
 from gi.repository import Dazzle
 
 class Bracer():
-    version = '1.0'
+    _VERSION = '1.0'
+    _TMP_DIR = None
+    
     racer = None
     setting = None
     dock_text_widget = None
     dock_widget = None
+    
+    def get_home():
+        peas = Peas.Engine.get_default()
+        plugin = peas.get_plugin_info('bracer')
+        home = plugin.get_data_dir()
+        return home
+        
+    def get_tmp_dir():
+        if Bracer._TMP_DIR is not None:
+            if os.path.exists(Bracer._TMP_DIR):
+                return Bracer._TMP_DIR
+            
+        settings = Gio.Settings.new('org.gnome.builder')
+        path = os.path.realpath(settings.get_string('projects-directory'))
+        tmp = os.path.join(path, '.bracer')
+
+        if not os.path.exists(tmp):
+            try:
+                os.mkdir(tmp)
+            except OSError:
+                print('Fail to create the temporary directory for bracer')
+                pass
+                
+        Bracer._TMP_DIR = tmp  
+        return Bracer._TMP_DIR
 
 class Racer:
     def __init__(self):
-        self.RACER_PATH = None
-        
+        self.racer_path = None
+        self.tmp_path = None
         # This Regex copied from https://github.com/qzed/autocomplete-racer
         self.regex = '^MATCH\s+([^;]+);([^;]+);(\d+);(\d+);((?:[^;]|\\;)+);([^;]+);((?:[^;]|\\;)+)?;\"([\S\s]+)?\"'
 
     def get_racer_path(self):
-        if self.RACER_PATH is not None:
-            return self.RACER_PATH
+        if self.racer_path is not None:
+            return self.racer_path
 
-        default_value = ""
-        possible_racer_paths = ("/usr/bin/racer", "/usr/local/bin/racer", os.path.expanduser("~/.cargo/bin/racer"))
+        possible_racer_paths = ("/usr/bin/racer",
+                                "/usr/local/bin/racer",
+                                os.path.expanduser("~/.cargo/bin/racer"))
+                                
         for path in possible_racer_paths:
             if os.path.exists(path):
-                default_value = path
+                self.racer_path = path
 
-        self.RACER_PATH = default_value
-        return self.RACER_PATH
+        return self.racer_path
     
-    def init_racer(self, context, subcommand):
+    def search(self, context, mode):
         _, iter = context.get_iter()
-        current_dir = os.path.dirname(iter.get_buffer()
-                        .get_file()
-                        .get_path())
-        
-        temp_file = tempfile.NamedTemporaryFile(dir=current_dir)
+        project_dir = Bracer.get_tmp_dir()
+        print(str(Bracer.get_tmp_dir()))
+        temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
         buffer = iter.get_buffer()
         begin, end = buffer.get_bounds()
@@ -65,7 +92,7 @@ class Racer:
         try:
             launcher = Ide.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_PIPE)
             launcher.push_argv(self.get_racer_path())
-            launcher.push_argv(subcommand)
+            launcher.push_argv(mode)
             launcher.push_argv(str(line))
             launcher.push_argv(str(column))
             launcher.push_argv(temp_file.name)
@@ -83,7 +110,7 @@ class Racer:
         return result
 
     def get_matches(self, context):
-        proc_result = self.init_racer(context, "complete-with-snippet")
+        proc_result = self.search(context, "complete-with-snippet")
         if proc_result == "" or proc_result is None:
             return []
 
@@ -101,10 +128,11 @@ class Racer:
                 _cxt = line_items[7]
                 _doc = line_items[8]
                 
-                _doc = _doc.replace('\\;', ';')
-                _doc = _doc.replace('\\n', '\n')
-                _doc = _doc.replace('\\"', '"')
-                _doc = _doc.replace('\\\\', '\\')
+                if _doc is not None:
+                    _doc = _doc.replace('\\;', ';')
+                    _doc = _doc.replace('\\n', '\n')
+                    _doc = _doc.replace('\\"', '"')
+                    _doc = _doc.replace('\\\\', '\\')
                  
                 completion.append((_text,_snippet,_path,_type,_cxt,_doc))
                 
@@ -175,7 +203,10 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
         
     def do_get_info(self):
         textbuffer = Bracer.dock_text_widget.get_buffer()
-        textbuffer.set_text(self.info)
+        if self.info is not None:
+            textbuffer.set_text(self.info)
+        else:
+            textbuffer.set_text('No documentation')
         return None
 
     def do_get_gicon(self):
@@ -198,7 +229,7 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
 
     def do_changed(self):
         pass
-        
+    
 class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
     def do_load(self, workbench):
         print('Builder Workbench Addin: Load Bracer plugin workbench')
@@ -242,18 +273,40 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         self.prefs.add_page('bracer', _('Bracer Preferences'), 100)
         # Show Bracer & Racer versions
         self.show_version()
-
+        # Show Bracer preferences
+        self.show_preferences()
+        
     def do_unload(self, prefs):
         print('Builder Preferences Addin: Unload Bracer plugin preferences')
         if self.ids:
             for id in self.ids:
                 prefs.remove_id(id)
+    
+    def show_preferences(self):
+        self.prefs.add_list_group('bracer', 'preferences', _('Preferences'), Gtk.SelectionMode.NONE, 100)
+        documentation = self.prefs.add_switch(
+                'bracer', 'preferences',
+                'org.gnome.builder.plugins.bracer.enabled', 'enabled', '/',
+                None,
+                _("Documentation"),
+                _("The documentation should be shown on the dock\ninside Rust Documentation tab"),
+                None, 30)
+        markdown = self.prefs.add_switch(
+                'bracer', 'preferences',
+                'org.gnome.builder.extension-type', 'enabled', '/',
+                None,
+                _("Markdown"),
+                _("Show the documentation as Markdown"),
+                None, 30)
+                
+        self.ids.append(documentation)
+        self.ids.append(markdown)
                 
     def show_version(self):
         self.prefs.add_list_group('bracer', 'version', _('Versions'), Gtk.SelectionMode.NONE, 100)
         
         # Bracer
-        bracerv = Bracer.version
+        bracerv = Bracer._VERSION
         bracer = self.create_version_view('Bracer', bracerv)
         # Racer
         racerv = Bracer.racer.version()
