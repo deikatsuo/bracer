@@ -7,6 +7,7 @@ Rust auto-completion plugin for Builder IDE based on Racer
 - Rust auto-completion
 - Rust documentation
 - Preferences
+
 ## TODO
 - Documentation shown as markdown
 
@@ -23,7 +24,7 @@ $rustup component add rust-src
 $mkdir -p ~/.local/share/gnome-builder/plugins
 $cd ~/.local/share/gnome-builder/plugins
 $git clone https://github.com/deikatsuo/bracer.git
-```https://www.rust-lang.org/en-US/
+```
 
 ### Step 3
 ![Example](/Screenshot/Bracer%20Enable.png)
