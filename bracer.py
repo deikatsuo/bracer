@@ -18,6 +18,15 @@ from gi.repository import Peas
 from gi.repository import Ide
 from gi.repository import Dazzle
 
+_IconNames = {  "Module":       Gio.ThemedIcon.new('lang-class-symbolic'),
+                "Struct":       Gio.ThemedIcon.new('lang-class-symbolic'),
+                "StructField":  Gio.ThemedIcon.new('lang-class-symbolic'),
+                "Trait":        Gio.ThemedIcon.new('lang-namespace-symbolic'),
+                "Function":     Gio.ThemedIcon.new('lang-function-symbolic'),
+                "Let":          Gio.ThemedIcon.new('lang-variable-symbolic'),
+                "Enum":         Gio.ThemedIcon.new('lang-namespace-symbolic'),
+                "Crate":        Gio.ThemedIcon.new('lang-namespace-symbolic')  }
+                
 class Bracer():
     _VERSION = '1.10'
     _TMP_DIR = None
@@ -77,7 +86,6 @@ class Racer:
     def search(self, context, mode):
         _, iter = context.get_iter()
         project_dir = Bracer.get_tmp_dir()
-        print(str(Bracer.get_tmp_dir()))
         temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
         buffer = iter.get_buffer()
@@ -161,9 +169,7 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
 
     def do_populate(self, context):
         if Bracer.enabled:
-            _, iter = context.get_iter()
             proposals = []
-
             for _text, _snippet, _path, _type, _cxt, _doc in Bracer.racer.get_matches(context):
                 proposal = CompletionProposal(self, context, _text, _doc, _type)
                 proposals.append(proposal)
@@ -172,11 +178,11 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
             
     def do_match(self, context):
         _, iter = context.get_iter()
-        iter.backward_char()
-        ch = iter.get_char()
+        copy = iter.copy()
+        copy.set_line_offset(0)
+        ch = copy.get_char()
         if not (ch in (':', '.', '&') or ch.isalnum()):
             return False
-        buffer = iter.get_buffer()
         if Ide.CompletionProvider.context_in_comment_or_string(context):
             return False
         return True
@@ -212,16 +218,7 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
         return None
 
     def do_get_gicon(self):
-        icon_names = {  "Module":       "lang-class-symbolic",
-                        "Struct":       "lang-class-symbolic",
-                        "StructField":  "lang-class-symbolic",
-                        "Trait":        "lang-namespace-symbolic",
-                        "Function":     "lang-function-symbolic",
-                        "Let":          "lang-variable-symbolic",
-                        "Enum":         "lang-namespace-symbolic",
-                        "Crate":        "lang-class-symbolic"  }
-            
-        return Gio.ThemedIcon.new(icon_names[self.type])
+        return _IconNames[self.type]
 
     def do_hash(self):
         return hash(self.completion)
