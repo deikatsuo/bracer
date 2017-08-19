@@ -9,8 +9,8 @@ Rust auto-completion plugin for Builder IDE based on Racer
 ## Features
 - Rust auto-completion
 - Rust documentation
-- Documentation shown as markdown
-- Preferences
+  - Markdown view
+  - Preferences
 
 ## TODO
 - [...]
