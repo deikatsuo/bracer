@@ -7,6 +7,7 @@ gi.require_version('Gtk', '3.0')
 gi.require_version('GtkSource', '3.0')
 gi.require_version('GIRepository', '2.0')
 gi.require_version('Ide', '1.0')
+gi.require_version('WebKit2', '4.0')
 
 from gi.repository import GIRepository
 from gi.repository import Gio
@@ -17,6 +18,7 @@ from gi.repository import GtkSource
 from gi.repository import Peas
 from gi.repository import Ide
 from gi.repository import Dazzle
+from gi.repository import WebKit2
 
 _IconNames = {  "Module":       Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Struct":       Gio.ThemedIcon.new('lang-class-symbolic'),
@@ -28,14 +30,18 @@ _IconNames = {  "Module":       Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Crate":        Gio.ThemedIcon.new('lang-namespace-symbolic')  }
                 
 class Bracer():
-    _VERSION = '1.10'
+    _VERSION = '1.40'
     _TMP_DIR = None
+    _MARKDOWN_CSS = None
+    _MARKED_JS = None
+    _MARKDOWN_VIEW_JS = None
     
     enabled = False
     racer = None
     setting = None
     dock_text_widget = None
     dock_widget = None
+    dock_webview = None
     
     def get_home():
         peas = Peas.Engine.get_default()
@@ -61,6 +67,26 @@ class Bracer():
                 
         Bracer._TMP_DIR = tmp  
         return Bracer._TMP_DIR
+    
+    def get_data(name):
+        path = os.path.join(Bracer.get_home(), name)
+        return open(path, 'r').read()
+        
+    def get_markdown(text):
+        text = text.replace("\"", "\\\"").replace("\n", "\\n")
+
+        return ('<html>'
+                '<head>'
+                '<style>'+Bracer._MARKDOWN_CSS+'</style>'
+                '<script>var str="'+text+'";</script>'
+                '<script>'+Bracer._MARKED_JS+'</script>'
+                '<script>'+Bracer._MARKDOWN_VIEW_JS+'</script>'
+                '</head>'
+                '<body onload="preview()">'
+                '<div class="markdown-body" id="preview">'
+                '</div>'
+                '</body>'
+                '</html>')
 
 class Racer:
     def __init__(self):
@@ -89,6 +115,8 @@ class Racer:
         temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
         buffer = iter.get_buffer()
+        begin = iter.copy()
+        begin.set_line_offset(0)
         begin, end = buffer.get_bounds()
         doc_text = buffer.get_text(begin, end, True)
         temp_file.write(doc_text.encode('utf-8'))
@@ -130,20 +158,21 @@ class Racer:
                 line_items = re.split(self.regex, line)
 
                 _text = line_items[1]
-                _snippet = line_items[2]
+                #_snippet = line_items[2]
                 #_pos = line_items[3] line_item[4]
-                _path = line_items[5]
+                #_path = line_items[5]
                 _type = line_items[6]
-                _cxt = line_items[7]
-                _doc = line_items[8]
+                #_cxt = line_items[7]
                 
-                if _doc is not None:
+                _doc = None
+                if line_items[8]:
+                    _doc = line_items[8]
                     _doc = _doc.replace('\\;', ';')
                     _doc = _doc.replace('\\n', '\n')
                     _doc = _doc.replace('\\"', '"')
                     _doc = _doc.replace('\\\\', '\\')
                  
-                completion.append((_text,_snippet,_path,_type,_cxt,_doc))
+                completion.append((_text,_type,_doc))
                 
         return completion
     
@@ -170,7 +199,7 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
     def do_populate(self, context):
         if Bracer.enabled:
             proposals = []
-            for _text, _snippet, _path, _type, _cxt, _doc in Bracer.racer.get_matches(context):
+            for _text, _type, _doc in Bracer.racer.get_matches(context):
                 proposal = CompletionProposal(self, context, _text, _doc, _type)
                 proposals.append(proposal)
         
@@ -210,15 +239,22 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
         return self.complete
         
     def do_get_info(self):
-        textbuffer = Bracer.dock_text_widget.get_buffer()
+        info = 'No documentation'
         if self.info is not None:
-            textbuffer.set_text(self.info)
-        else:
-            textbuffer.set_text('No documentation')
+            info = self.info
+        if Bracer.settings.get_boolean('prefs-documentation'):
+            if Bracer.settings.get_boolean('prefs-markdown'):
+                Bracer.dock_webview.load_html(Bracer.get_markdown(info), None)
+            else:
+                text = Bracer.dock_text_widget.get_buffer()
+                text.set_text(info)
+                
         return None
 
     def do_get_gicon(self):
-        return _IconNames[self.type]
+        if self.type in _IconNames:
+            return _IconNames[self.type]
+        return None
 
     def do_hash(self):
         return hash(self.completion)
@@ -235,27 +271,40 @@ class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
 
         editor = workbench.get_perspective_by_name('editor')
         dock_pane = Ide.EditorPerspective.get_bottom_edge(editor)
-        
-        dock_text_widget = Gtk.TextView(visible=True, expand=True)
-        
-        scrolled = Gtk.ScrolledWindow(visible=True)
-        scrolled.add(dock_text_widget)
-        
-        dock_widget = Dazzle.DockWidget(title='Rust Documentation', visible=True, expand=True)
-        dock_widget.add(scrolled)
 
-        Bracer.dock_text_widget = dock_text_widget
+        dock_widget = Dazzle.DockWidget(title='Rust Documentation', visible=True, expand=True)
+
         Bracer.dock_widget = dock_widget
         
         if Bracer.settings.get_boolean('prefs-documentation'):
-            Ide.LayoutPane.add(dock_pane, Bracer.dock_widget)
+            if Bracer.settings.get_boolean('prefs-markdown'):
+                Bracer._MARKDOWN_CSS = Bracer.get_data('resources/markdown.css')
+                Bracer._MARKED_JS = Bracer.get_data('resources/marked.js')
+                Bracer._MARKDOWN_VIEW_JS = Bracer.get_data('resources/markdown-view.js')
+
+                webview = WebKit2.WebView(visible=True, expand=True)
+                Bracer.dock_webview = webview
+                settings = webview.get_settings()
+                settings.enable_html5_local_storage = False
+                Bracer.dock_widget.add(Bracer.dock_webview)
+                Ide.LayoutPane.add(dock_pane, Bracer.dock_widget)
+            else:
+                dock_text_widget = Gtk.TextView(visible=True, expand=True)
+                Bracer.dock_text_widget = dock_text_widget
+                scrolled = Gtk.ScrolledWindow(visible=True)
+                scrolled.add(Bracer.dock_text_widget)
+                Bracer.dock_widget.add(scrolled)
+                Ide.LayoutPane.add(dock_pane, Bracer.dock_widget)
 
     def do_unload(self, workbench):
         print('Builder Workbench Addin: Unload Bracer plugin workbench')
         Bracer.dock_widget.destroy()
         Bracer.dock_widget = None
         Bracer.dock_text_widget = None
-        
+        Bracer.dock_webview = None 
+        Bracer._MARKDOWN_CSS = None
+        Bracer._MARKED_JS = None
+        Bracer._MARKDOWN_VIEW_JS = None       
 
 class BracerApplicationAddin(GObject.Object, Ide.ApplicationAddin):        
     def do_load(self, application):
@@ -293,6 +342,7 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         if self.ids:
             for id in self.ids:
                 prefs.remove_id(id)
+        self.prefs = None
         Bracer.settings = None
     
     def show_preferences(self):
@@ -344,6 +394,7 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
                        spacing=6,
                        expand=False,
                        visible=True)
+                       
         switch_box.pack_start(switch, True, False, 0)
         pack = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
                        spacing=6,
@@ -371,16 +422,26 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         racer = self.create_version_view('Racer', racerv)
         racerv2 = Bracer.racer.version()
         
-        bracer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, expand=True, visible=True)
+        bracer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                             spacing=6, expand=True,
+                             visible=True)
+                             
         bracer_box.pack_start(bracer, True, True, 0)
-        racer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, expand=True, visible=True)
+        racer_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                            spacing=6,
+                            expand=True,
+                            visible=True)
+                            
         racer_box.pack_start(racer, True, True, 0)
         
         self.ids.append(self.prefs.add_custom('bracer', 'version', bracer_box, None, 1000))
         self.ids.append(self.prefs.add_custom('bracer', 'version', racer_box, None, 1000))
         
     def create_version_view(self, label, version):
-        custom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12, expand=True, visible=True)
+        custom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL,
+                         spacing=12,
+                         expand=True,
+                         visible=True)
         
         title = Gtk.Label(halign='start', expand=True, visible=True, label=label)
         subtitle = Gtk.Label(halign='start', expand=True, visible=True)
@@ -393,7 +454,11 @@ class BracerPreferencesAddin(GObject.Object, Ide.PreferencesAddin):
         
         custom.pack_start(vbox, True, True, 0)
         
-        pack = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, expand=True, visible=True)
+        pack = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                       spacing=6,
+                       expand=True,
+                       visible=True)
+                       
         pack.pack_start(custom, True, True, 0)
         
         return pack
