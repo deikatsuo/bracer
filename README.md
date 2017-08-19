@@ -1,5 +1,5 @@
 # Bracer
-Rust auto-completion plugin for Builder IDE based on Racer
+Rust auto-completion plugin for Builder IDE based on [Racer]
 
 ### Screenshot hiji
 ![Example](/Screenshot/Bracer%20Documentation.png)
@@ -33,3 +33,5 @@ $git clone https://github.com/deikatsuo/bracer.git
 
 ### Step 3
 ![Example](/Screenshot/Bracer%20Enable.png)
+
+[racer]: https://github.com/phildawes/racer
