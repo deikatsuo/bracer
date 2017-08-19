@@ -1,8 +1,11 @@
 # Bracer
 Rust auto-completion plugin for Builder IDE based on Racer
 
-![Example](/Screenshot/Bracer%20Documentation%20re.png)
+### Screenshot hiji
+![Example](/Screenshot/Bracer%20Documentation.png)
 
+### Screenshot dua
+![Example](/Screenshot/Bracer%20Preferences.png)
 ## Features
 - Rust auto-completion
 - Rust documentation
