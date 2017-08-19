@@ -7,8 +7,9 @@ Rust auto-completion plugin for Builder IDE based on Racer
 ### Screenshot dua
 ![Example](/Screenshot/Bracer%20Preferences.png)
 ## Features
-- Rust auto-completion
-- Rust documentation
+- Auto-completion
+- Documentation
+
   - Markdown view
   - Preferences
 
