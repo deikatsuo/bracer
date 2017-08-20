@@ -109,8 +109,7 @@ class Racer:
 
         return self.racer_path
     
-    def search(self, context, mode):
-        _, iter = context.get_iter()
+    def search(self, iter, mode):
         project_dir = Bracer.get_tmp_dir()
         temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
@@ -146,8 +145,8 @@ class Racer:
         temp_file.close()
         return result
 
-    def get_matches(self, context):
-        proc_result = self.search(context, "complete-with-snippet")
+    def get_matches(self, iter):
+        proc_result = self.search(iter, "complete-with-snippet")
         if proc_result == "" or proc_result is None:
             return []
 
@@ -197,10 +196,11 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         return _("Bracer Rust Code Completion")
 
     def do_populate(self, context):
+        _, iter = context.get_iter()
         if Bracer.enabled:
             proposals = []
-            for _text, _type, _doc in Bracer.racer.get_matches(context):
-                proposal = CompletionProposal(self, context, _text, _doc, _type)
+            for _text, _type, _doc in Bracer.racer.get_matches(iter):
+                proposal = CompletionProposal(self, context, str(_text), str(_doc), str(_type))
                 proposals.append(proposal)
         
             context.add_proposals(self, proposals, True)
@@ -217,7 +217,20 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         return True
         
     def do_activate_proposal(self, provider, proposal):
-        return False, None       
+        return False, None
+        
+    def do_get_start_iter(self, context, proposal):
+        _, iter = context.get_iter()
+        return True, iter
+    
+    def do_activate_proposal(self, provider, proposal):
+        return False, None
+    
+    def do_get_interactive_delay(self):
+        return -1
+    
+    def do_get_priority(self):
+        return 201  
             
 class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
     def __init__(self, provider, context, _completion, _info, _type, *args, **kwargs):
