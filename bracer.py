@@ -113,11 +113,11 @@ class Racer:
         project_dir = Bracer.get_tmp_dir()
         temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
-        buffer = iter.get_buffer()
+        sbuffer = iter.get_buffer()
         begin = iter.copy()
         begin.set_line_offset(0)
-        begin, end = buffer.get_bounds()
-        doc_text = buffer.get_text(begin, end, True)
+        begin, end = sbuffer.get_bounds()
+        doc_text = sbuffer.get_text(begin, end, True)
         temp_file.write(doc_text.encode('utf-8'))
         temp_file.seek(0)
         
@@ -197,12 +197,14 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
 
     def do_populate(self, context):
         _, iter = context.get_iter()
+        copy = iter.copy()
         if Bracer.enabled:
             proposals = []
-            for _text, _type, _doc in Bracer.racer.get_matches(iter):
-                proposal = CompletionProposal(self, context, str(_text), str(_doc), str(_type))
-                proposals.append(proposal)
-        
+            for _text, _type, _doc in Bracer.racer.get_matches(copy):
+                if _text is not None:
+                    proposal = CompletionProposal(self, context, str(_text), str(_doc), str(_type))
+                    proposals.append(proposal)
+            
             context.add_proposals(self, proposals, True)
             
     def do_match(self, context):
