@@ -30,7 +30,7 @@ _IconNames = {  "Module":       Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Crate":        Gio.ThemedIcon.new('lang-namespace-symbolic')  }
                 
 class Bracer():
-    _VERSION = '1.40'
+    _VERSION = '1.50'
     _TMP_DIR = None
     _MARKDOWN_CSS = None
     _MARKED_JS = None
@@ -202,7 +202,7 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
             proposals = []
             for _text, _type, _doc in Bracer.racer.get_matches(copy):
                 if _text is not None:
-                    proposal = CompletionProposal(self, context, str(_text), str(_doc), str(_type))
+                    proposal = CompletionProposal(self, context, _text, _doc, _type)
                     proposals.append(proposal)
             
             context.add_proposals(self, proposals, True)
@@ -220,10 +220,6 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         
     def do_activate_proposal(self, provider, proposal):
         return False, None
-        
-    def do_get_start_iter(self, context, proposal):
-        _, iter = context.get_iter()
-        return True, iter
     
     def do_activate_proposal(self, provider, proposal):
         return False, None
@@ -270,12 +266,6 @@ class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
         if self.type in _IconNames:
             return _IconNames[self.type]
         return None
-
-    def do_hash(self):
-        return hash(self.completion)
-
-    def do_equal(self, other):
-        return False
 
     def do_changed(self):
         pass
