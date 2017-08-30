@@ -275,9 +275,12 @@ class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
         print('Builder Workbench Addin: Load Bracer plugin workbench')
 
         editor = workbench.get_perspective_by_name('editor')
-        dock_pane = Ide.EditorPerspective.get_bottom_edge(editor)
+        dock_pane = Ide.EditorPerspective.get_utilities(editor)
 
-        dock_widget = Dazzle.DockWidget(title='Rust Documentation', visible=True, expand=True)
+        dock_widget = Dazzle.DockWidget(title=_('Rust Docs'),
+                                        icon_name='accessories-dictionary-symbolic',
+                                        visible=True,
+                                        expand=False)
 
         Bracer.dock_widget = dock_widget
         
