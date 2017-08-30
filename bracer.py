@@ -23,14 +23,14 @@ from gi.repository import WebKit2
 _IconNames = {  "Module":       Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Struct":       Gio.ThemedIcon.new('lang-class-symbolic'),
                 "StructField":  Gio.ThemedIcon.new('lang-class-symbolic'),
-                "Trait":        Gio.ThemedIcon.new('lang-namespace-symbolic'),
+                "Trait":        Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Function":     Gio.ThemedIcon.new('lang-function-symbolic'),
                 "Let":          Gio.ThemedIcon.new('lang-variable-symbolic'),
-                "Enum":         Gio.ThemedIcon.new('lang-namespace-symbolic'),
+                "Enum":         Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Crate":        Gio.ThemedIcon.new('lang-namespace-symbolic')  }
                 
 class Bracer():
-    _VERSION = '1.50'
+    _VERSION = '1.60'
     _TMP_DIR = None
     _MARKDOWN_CSS = None
     _MARKED_JS = None
@@ -109,20 +109,20 @@ class Racer:
 
         return self.racer_path
     
-    def search(self, iter, mode):
+    def search(self, iterc, mode):
         project_dir = Bracer.get_tmp_dir()
         temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
-        sbuffer = iter.get_buffer()
-        begin = iter.copy()
+        sbuffer = iterc.get_buffer()
+        begin = iterc.copy()
         begin.set_line_offset(0)
         begin, end = sbuffer.get_bounds()
         doc_text = sbuffer.get_text(begin, end, True)
         temp_file.write(doc_text.encode('utf-8'))
         temp_file.seek(0)
         
-        line = iter.get_line() + 1
-        column = iter.get_line_offset()
+        line = iterc.get_line() + 1
+        column = iterc.get_line_offset()
 
         result = None
         try:
@@ -145,8 +145,8 @@ class Racer:
         temp_file.close()
         return result
 
-    def get_matches(self, iter):
-        proc_result = self.search(iter, "complete-with-snippet")
+    def get_matches(self, iterc):
+        proc_result = self.search(iterc, "complete-with-snippet")
         if proc_result == "" or proc_result is None:
             return []
 
@@ -197,10 +197,10 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
 
     def do_populate(self, context):
         _, iter = context.get_iter()
-        copy = iter.copy()
+        iterc = iter.copy()
         if Bracer.enabled:
             proposals = []
-            for _text, _type, _doc in Bracer.racer.get_matches(copy):
+            for _text, _type, _doc in Bracer.racer.get_matches(iterc):
                 if _text is not None:
                     proposal = CompletionProposal(self, context, _text, _doc, _type)
                     proposals.append(proposal)
