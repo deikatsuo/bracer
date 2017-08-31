@@ -37,6 +37,8 @@ class Bracer():
     _MARKDOWN_CSS = None
     _MARKED_JS = None
     _MARKDOWN_VIEW_JS = None
+    _HL_JS = None
+    _HL_GITHUB_CSS = None
     
     enabled = False
     racer = None
@@ -80,8 +82,10 @@ class Bracer():
         return ('<html>'
                 '<head>'
                 '<style>'+Bracer._MARKDOWN_CSS+'</style>'
+                '<style>'+Bracer._HL_GITHUB_CSS+'</style>'
                 '<script>var str="'+text+'";</script>'
                 '<script>'+Bracer._MARKED_JS+'</script>'
+                '<script>'+Bracer._HL_JS+'</script>'
                 '<script>'+Bracer._MARKDOWN_VIEW_JS+'</script>'
                 '</head>'
                 '<body onload="preview()">'
@@ -302,7 +306,9 @@ class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
         if Bracer.settings.get_boolean('prefs-documentation'):
             if Bracer.settings.get_boolean('prefs-markdown'):
                 Bracer._MARKDOWN_CSS = Bracer.get_data('resources/markdown.css')
+                Bracer._HL_GITHUB_CSS = Bracer.get_data('resources/github.css')
                 Bracer._MARKED_JS = Bracer.get_data('resources/marked.js')
+                Bracer._HL_JS = Bracer.get_data('resources/hljs.js')
                 Bracer._MARKDOWN_VIEW_JS = Bracer.get_data('resources/markdown-view.js')
 
                 webview = WebKit2.WebView(visible=True, expand=True)
@@ -326,8 +332,10 @@ class BracerWorkbenchAddin(GObject.Object, Ide.WorkbenchAddin):
         Bracer.dock_text_widget = None
         Bracer.dock_webview = None 
         Bracer._MARKDOWN_CSS = None
+        Bracer._HL_GITHUB_CSS = None
         Bracer._MARKED_JS = None
-        Bracer._MARKDOWN_VIEW_JS = None       
+        Bracer._HL_JS = None
+        Bracer._MARKDOWN_VIEW_JS = None     
 
 class BracerApplicationAddin(GObject.Object, Ide.ApplicationAddin):        
     def do_load(self, application):

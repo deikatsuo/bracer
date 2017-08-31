@@ -1,5 +1,12 @@
+hljs.configure({
+  languages: ['rust']
+})
+
 marked.setOptions({
   renderer: new marked.Renderer(),
+  highlight: function (code) {
+    return hljs.highlightAuto(code).value;
+  },
   gfm: true,
   tables: true,
   breaks: false,
