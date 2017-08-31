@@ -20,17 +20,19 @@ from gi.repository import Ide
 from gi.repository import Dazzle
 from gi.repository import WebKit2
 
-_IconNames = {  "Module":       Gio.ThemedIcon.new('lang-class-symbolic'),
-                "Struct":       Gio.ThemedIcon.new('lang-class-symbolic'),
-                "StructField":  Gio.ThemedIcon.new('lang-class-symbolic'),
+_IconNames = {  "Module":       Gio.ThemedIcon.new('lang-define-symbolic'),
+                "Struct":       Gio.ThemedIcon.new('lang-struct-symbolic'),
+                "StructField":  Gio.ThemedIcon.new('lang-enum-value-symbolic'),
                 "Trait":        Gio.ThemedIcon.new('lang-class-symbolic'),
                 "Function":     Gio.ThemedIcon.new('lang-function-symbolic'),
                 "Let":          Gio.ThemedIcon.new('lang-variable-symbolic'),
-                "Enum":         Gio.ThemedIcon.new('lang-class-symbolic'),
-                "Crate":        Gio.ThemedIcon.new('lang-namespace-symbolic')  }
+                "Type":         Gio.ThemedIcon.new('lang-typedef-symbolic'),
+                "Enum":         Gio.ThemedIcon.new('lang-enum-symbolic'),
+                "Union":        Gio.ThemedIcon.new('lang-union-symbolic'),
+                "Crate":        Gio.ThemedIcon.new('lang-include-symbolic')  }
                 
 class Bracer():
-    _VERSION = '1.60'
+    _VERSION = '1.70'
     _TMP_DIR = None
     _MARKDOWN_CSS = None
     _MARKED_JS = None
@@ -93,7 +95,7 @@ class Racer:
         self.racer_path = None
         self.tmp_path = None
         # This Regex copied from https://github.com/qzed/autocomplete-racer
-        self.regex = '^MATCH\s+([^;]+);([^;]+);(\d+);(\d+);((?:[^;]|\\;)+);([^;]+);((?:[^;]|\\;)+)?;\"([\S\s]+)?\"'
+        self.regex = r'^MATCH\s+([^;]+);([^;]+);(\d+);(\d+);((?:[^;]|\\;)+);([^;]+);((?:[^;]|\\;)+)?;\"([\S\s]+)?\"'
 
     def get_racer_path(self):
         if self.racer_path is not None:
@@ -161,7 +163,7 @@ class Racer:
                 #_pos = line_items[3] line_item[4]
                 #_path = line_items[5]
                 _type = line_items[6]
-                #_cxt = line_items[7]
+                _cxt = line_items[7]
                 
                 _doc = None
                 if line_items[8]:
@@ -171,7 +173,7 @@ class Racer:
                     _doc = _doc.replace('\\"', '"')
                     _doc = _doc.replace('\\\\', '\\')
                  
-                completion.append((_text,_type,_doc))
+                completion.append((_text,_type,_doc,_cxt))
                 
         return completion
     
@@ -200,9 +202,9 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         iterc = iter.copy()
         if Bracer.enabled:
             proposals = []
-            for _text, _type, _doc in Bracer.racer.get_matches(iterc):
+            for _text, _type, _doc, _cxt in Bracer.racer.get_matches(iterc):
                 if _text is not None:
-                    proposal = CompletionProposal(self, context, _text, _doc, _type)
+                    proposal = CompletionProposal(self, context, _text, _type, _doc, _cxt)
                     proposals.append(proposal)
             
             context.add_proposals(self, proposals, True)
@@ -231,23 +233,36 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
         return 201  
             
 class CompletionProposal(GObject.Object, GtkSource.CompletionProposal):
-    def __init__(self, provider, context, _completion, _info, _type, *args, **kwargs):
+    def __init__(self, provider, context, _completion, _type, _doc, _cxt, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.provider = provider
         self.context = context
         self.completion = _completion
-        self.complete = _completion
-        self.info = _info
         self.type = _type
+        self.info = _doc
+        self.cxt = _cxt
 
     def do_get_label(self):
         return completion
 
     def do_get_markup(self):
-        return "<sup>"+self.type+"</sup> <big>"+self.completion+"</big>"
+        typ = ""
+        cxt = ""
+        if self.type:
+            typ = self.type
+        if self.cxt:
+            cxt = self.cxt
+            cxt = cxt.replace("&", "&amp;")
+            cxt = cxt.replace("<", "&lt;")
+            cxt = cxt.replace(">", "&gt;")
+            cxt = cxt.replace('\\;', '')
+            cxt = " : <sup>"+cxt+"</sup>"
+            
+        compl = self.completion
+        return "<sup>"+typ+"</sup> <big>"+compl+"</big>"+cxt
 
     def do_get_text(self):
-        return self.complete
+        return self.completion
         
     def do_get_info(self):
         info = 'No documentation'
