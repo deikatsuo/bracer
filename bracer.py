@@ -32,7 +32,7 @@ _IconNames = {  "Module":       Gio.ThemedIcon.new('lang-define-symbolic'),
                 "Crate":        Gio.ThemedIcon.new('lang-include-symbolic')  }
                 
 class Bracer():
-    _VERSION = '1.70'
+    _VERSION = '1.71'
     _TMP_DIR = None
     _MARKDOWN_CSS = None
     _MARKED_JS = None
@@ -119,11 +119,11 @@ class Racer:
         project_dir = Bracer.get_tmp_dir()
         temp_file = tempfile.NamedTemporaryFile(dir=project_dir)
         
-        sbuffer = iterc.get_buffer()
-        begin = iterc.copy()
-        begin.set_line_offset(0)
-        begin, end = sbuffer.get_bounds()
-        doc_text = sbuffer.get_text(begin, end, True)
+        buff = iterc.get_buffer()
+
+        begin, end = buff.get_bounds()
+        doc_text = buff.get_text(begin, end, True)
+        
         temp_file.write(doc_text.encode('utf-8'))
         temp_file.seek(0)
         
@@ -216,17 +216,13 @@ class BracerCompletionProvider(Ide.Object, GtkSource.CompletionProvider, Ide.Com
     def do_match(self, context):
         _, iter = context.get_iter()
         copy = iter.copy()
-        copy.set_line_offset(0)
+        copy.backward_char()
         ch = copy.get_char()
         if not (ch in (':', '.', '&') or ch.isalnum()):
             return False
-        if Ide.CompletionProvider.context_in_comment_or_string(context):
-            return False
+            
         return True
         
-    def do_activate_proposal(self, provider, proposal):
-        return False, None
-    
     def do_activate_proposal(self, provider, proposal):
         return False, None
     
